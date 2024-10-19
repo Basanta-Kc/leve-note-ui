@@ -10,17 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  useMutation,
-} from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import "react-quill/dist/quill.snow.css";
 import { convertToDateTimeLocal } from "@/lib/utils";
-import { Note, ReminderSchema } from "@/shcemas";
-import {
-  createReminder,
-  updateReminder,
-} from "@/api";
-
+import { Note } from "@/shcemas";
+import { createReminder, updateReminder } from "@/api";
 
 export function ReminderFormDialog({
   isReminderDialogOpen,
@@ -31,7 +25,6 @@ export function ReminderFormDialog({
   isReminderDialogOpen: boolean;
   setIsReminderDialogOpen: (open: boolean) => void;
 }) {
-  console.log(selectedNote);
   const [reminderEmail, setReminderEmail] = useState();
   const [reminderDate, setReminderDate] = useState();
   const createReminderMutation = useMutation({
@@ -43,11 +36,11 @@ export function ReminderFormDialog({
   });
   const setReminder = () => {
     if (selectedNote) {
-      const reminderData = ReminderSchema.parse({
+      const reminderData = {
         email: reminderEmail,
         date: reminderDate,
         note_id: selectedNote.id,
-      });
+      };
       if (selectedNote.reminder) {
         updateReminderMutation.mutate({
           id: selectedNote.reminder.id,
