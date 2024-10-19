@@ -40,7 +40,6 @@ export function NoteSideBar({
   notes: Note[];
   hasNextPage: boolean;
   isLoadingNotes: boolean;
-  setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
   fetchNextPage: (
     options?: FetchNextPageOptions
   ) => Promise<
