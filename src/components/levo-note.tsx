@@ -34,6 +34,7 @@ import { useInView } from "react-intersection-observer";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import httpClient from "@/config/httpClient";
+import useDebounce from "@/hooks/useDebounce";
 
 // Zod schemas for data validation
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -73,8 +74,11 @@ const api = {
     const response = await httpClient.post("/notes", note);
     return response.data;
   },
-  updateNote: async (note: Note): Promise<Note> => {
-    const response = await httpClient.put(`/notes/${note.id}`, note);
+  updateNote: async ({ id, title, description }: Note): Promise<Note> => {
+    const response = await httpClient.put(`/notes/${id}`, {
+      title,
+      description,
+    });
     return response.data;
   },
   deleteNote: async (id: string): Promise<void> => {
@@ -97,30 +101,50 @@ function LevoNote() {
   const [isEditing, setIsEditing] = useState(false);
   const { ref, inView } = useInView();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
 
+  // Debounced values
+  const debouncedTitle = useDebounce(title, 2000); // 500ms debounce
+  const debouncedDescription = useDebounce(description, 2000);
+
+  // Debounced values
+  const debouncedSearchQuery = useDebounce(searchQuery, 2000);
+
+  // Infinite query for fetching notes
   const {
     data,
     fetchNextPage,
     hasNextPage,
-    isFetchingNextPage,
     isLoading: isLoadingNotes,
   } = useInfiniteQuery({
-    queryKey: ["notes", searchQuery],
-    queryFn: ({ pageParam = page }) => api.getNotes(pageParam, 5, searchQuery),
-    getNextPageParam: (lastPage) => {
-      const nextPage = page + 1;
-      return nextPage * 5 <= lastPage.total ? nextPage : undefined;
+    queryKey: ["notes", debouncedSearchQuery],
+    queryFn: ({ pageParam = 1 }) =>
+      api.getNotes(pageParam, 5, debouncedSearchQuery),
+    getNextPageParam: (lastPage, allPages) => {
+      const nextPage = allPages.length + 1; // Increment current page count
+      return nextPage <= lastPage.total / 5 ? nextPage : undefined; // Assuming `total` is the total number of notes
     },
   });
 
   const notes = data ? data.pages.flatMap((page) => page.items) : [];
 
-  const { data: selectedNote, isLoading: isLoadingSelectedNote } = useQuery({
+  const {
+    data: selectedNote,
+    isLoading: isLoadingSelectedNote,
+    isFetched,
+  } = useQuery({
     queryKey: ["note", selectedNoteId],
     queryFn: () => api.getNote(selectedNoteId!),
     enabled: !!selectedNoteId,
   });
+
+  useEffect(() => {
+    if (isFetched) {
+      setTitle(selectedNote?.title || "");
+      setDescription(selectedNote?.description || "");
+    }
+  }, [isFetched, selectedNote]);
 
   const createNoteMutation = useMutation({
     mutationFn: api.createNote,
@@ -129,8 +153,19 @@ function LevoNote() {
 
   const updateNoteMutation = useMutation({
     mutationFn: api.updateNote,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    retry: 0,
   });
+
+  // Effect to handle updates when debounced values change
+  useEffect(() => {
+    if (debouncedTitle || debouncedDescription) {
+      updateNoteMutation.mutate({
+        id: selectedNoteId,
+        title: debouncedTitle,
+        description: debouncedDescription,
+      });
+    }
+  }, [debouncedTitle, debouncedDescription]);
 
   const deleteNoteMutation = useMutation({
     mutationFn: api.deleteNote,
@@ -144,15 +179,8 @@ function LevoNote() {
   const addNewNote = () => {
     createNoteMutation.mutate({
       title: `Untitled ${notes.length + 1}`,
-      description: "<p>Start writing your new note here...</p>",
+      description: "<p>Start writing your new note by clicking on edit icon above ...</p>",
     });
-  };
-
-  const updateNoteContent = (description: string) => {
-    if (selectedNote) {
-      const updatedNote = { ...selectedNote, description };
-      updateNoteMutation.mutate(updatedNote);
-    }
   };
 
   const deleteNote = () => {
@@ -224,13 +252,13 @@ function LevoNote() {
           ))}
           {hasNextPage && (
             <div ref={ref} className="flex justify-center p-4">
-              {isFetchingNextPage ? (
+              {/* {isFetchingNextPage ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
               ) : (
                 <Button onClick={() => fetchNextPage()} variant="ghost">
                   Load More
                 </Button>
-              )}
+              )} */}
             </div>
           )}
         </nav>
@@ -249,14 +277,8 @@ function LevoNote() {
             </button>
             <input
               type="text"
-              value={selectedNote?.title || ""}
-              onChange={(e) =>
-                selectedNote &&
-                updateNoteMutation.mutate({
-                  ...selectedNote,
-                  title: e.target.value,
-                })
-              }
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="text-xl font-semibold bg-transparent border-none focus:outline-none"
             />
           </div>
@@ -297,14 +319,14 @@ function LevoNote() {
           ) : selectedNote ? (
             isEditing ? (
               <ReactQuill
-                value={selectedNote.description}
-                onChange={(content) => updateNoteContent(content)}
+                value={description}
+                onChange={(content) => setDescription(content)}
                 className="h-full"
               />
             ) : (
               <div
                 className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: selectedNote.description }}
+                dangerouslySetInnerHTML={{ __html: description}}
               />
             )
           ) : (
