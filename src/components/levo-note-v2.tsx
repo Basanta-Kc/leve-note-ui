@@ -14,6 +14,35 @@ import { NoteSideBar } from "./NoteSideBar";
 import { ReminderFormDialog } from "./ReminderFormDialog";
 import useSyncQueryParam from "@/hooks/useSyncQueryParam";
 
+  /**
+   * A note-taking app with a sidebar for listing notes and a main content area for editing a selected note.
+   * The app uses React Query for caching and optimistic updates.
+   *
+   * The app has the following features:
+   * - Creates a new note with a title and description
+   * - Edits a selected note
+   * - Deletes a selected note
+   * - Sets a reminder for a selected note
+   * - Lists all notes and filters by search query
+   * - Paginates notes 20 at a time
+   * - Debounces search query and updates notes list
+   * - Debounces title and description and updates the selected note
+   * - Invalidates the notes list when a note is edited or deleted
+   *
+   * The app uses the following hooks:
+   * - useQuery for fetching notes and selected note
+   * - useMutation for updating a note and deleting a note
+   * - useInfiniteQuery for paginating notes
+   * - useDebounce for debouncing search query and title and description
+   * - useSyncQueryParam for syncing the selected note ID with the URL query parameter
+   *
+   * The app uses the following APIs:
+   * - getNotes(page, limit, searchQuery) for fetching notes
+   * - getNote(id) for fetching a selected note
+   * - updateNote(id, title, description) for updating a note
+   * - deleteNote(id) for deleting a note
+   */
+  
 export function LevoNote() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

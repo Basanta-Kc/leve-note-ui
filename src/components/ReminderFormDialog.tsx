@@ -24,6 +24,20 @@ const ReminderSchema = z.object({
 
 type ReminderFormInputs = z.infer<typeof ReminderSchema>;
 
+/**
+ * A dialog for setting a reminder for a note.
+ *
+ * The dialog allows the user to set an email reminder for the selected note.
+ * The reminder is sent to the email address the user provides at the date and
+ * time specified.
+ *
+ * The dialog takes the following props:
+ * - `isReminderDialogOpen`: Whether the dialog is open.
+ * - `setIsReminderDialogOpen`: A function to set whether the dialog is open.
+ * - `selectedNote`: The selected note.
+ *
+ * @returns The reminder dialog component.
+ */
 export function ReminderFormDialog({
   isReminderDialogOpen,
   setIsReminderDialogOpen,

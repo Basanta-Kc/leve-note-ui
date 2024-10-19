@@ -1,4 +1,3 @@
-// Zod schemas for data validation
 import { z } from "zod";
 
 export const NoteSchema = z.object({

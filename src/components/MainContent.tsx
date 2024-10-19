@@ -4,6 +4,32 @@ import { Menu } from "lucide-react";
 import { NoteActions } from "./NoteActions";
 import { NoteContent } from "./NoteContent";
 
+/**
+ * The main content of the application.
+ *
+ * This component renders the main content area of the application, which
+ * displays a note or allows the user to create a new note.
+ *
+ * The component takes the following props:
+ * - `description`: The description of the selected note.
+ * - `isLoadingNotes`: Whether the notes are being fetched.
+ * - `isLoadingSelectedNote`: Whether the selected note is being fetched.
+ * - `selectedNote`: The selected note, if any.
+ * - `isEditing`: Whether the selected note is being edited.
+ * - `toggleEditMode`: A function to toggle whether the selected note is being
+ *   edited.
+ * - `setDescription`: A function to set the description of the selected note.
+ * - `title`: The title of the selected note.
+ * - `setTitle`: A function to set the title of the selected note.
+ * - `setIsReminderDialogOpen`: A function to set whether the reminder dialog is
+ *   open.
+ * - `setIsDeleteDialogOpen`: A function to set whether the delete dialog is
+ *   open.
+ * - `isSidebarOpen`: Whether the sidebar is open.
+ * - `setIsSidebarOpen`: A function to set whether the sidebar is open.
+ *
+ * @returns The main content component.
+ */
 export function MainContent({
   description,
   isLoadingNotes,

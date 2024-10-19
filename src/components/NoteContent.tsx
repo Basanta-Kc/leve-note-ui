@@ -5,6 +5,22 @@ import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Note } from "@/shcemas";
 
+/**
+ * The main content of the note-taking app.
+ *
+ * This component renders the main content area of the note-taking app, which
+ * displays a note or allows the user to create a new note.
+ *
+ * The component takes the following props:
+ * - `description`: The description of the selected note.
+ * - `isLoadingNotes`: Whether the notes are being fetched.
+ * - `isLoadingSelectedNote`: Whether the selected note is being fetched.
+ * - `selectedNote`: The selected note, if any.
+ * - `isEditing`: Whether the selected note is being edited.
+ * - `setDescription`: A function to set the description of the selected note.
+ *
+ * @returns The main content component.
+ */
 export function NoteContent({
   description,
   isLoadingNotes,

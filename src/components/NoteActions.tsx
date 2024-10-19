@@ -5,6 +5,22 @@ import {
   X,
 } from "lucide-react";
 
+/**
+ * A component that displays the actions for a note.
+ *
+ * The component renders the actions at the bottom of the note content area.
+ * The actions are:
+ * - Toggle edit mode
+ * - Set reminder
+ * - Delete note
+ *
+ * @param isEditing - Whether the note is in edit mode.
+ * @param toggleEditMode - A function to toggle whether the note is in edit mode.
+ * @param setIsReminderDialogOpen - A function to set whether the reminder dialog is open.
+ * @param setIsDeleteDialogOpen - A function to set whether the delete dialog is open.
+ *
+ * @returns The actions component.
+ */
 export function NoteActions({
   isEditing,
   toggleEditMode,

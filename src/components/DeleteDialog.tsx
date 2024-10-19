@@ -9,7 +9,15 @@ import {
 import { Button } from "@/components/ui/button";
 import "react-quill/dist/quill.snow.css";
 
-
+/**
+ * A dialog for deleting a note.
+ *
+ * @param isDeleteDialogOpen - Whether the dialog is open.
+ * @param setIsDeleteDialogOpen - A function to set whether the dialog is open.
+ * @param deleteNote - A function to delete the note.
+ *
+ * @returns The dialog component.
+ */
 export function DeleteDialog({
   isDeleteDialogOpen,
   setIsDeleteDialogOpen,

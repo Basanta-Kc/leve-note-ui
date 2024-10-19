@@ -7,6 +7,20 @@ import { createNote } from "@/api";
 import { useInView } from "react-intersection-observer";
 import { useEffect } from "react";
 
+/**
+ * A sidebar for listing notes and creating a new note.
+ *
+ * @param isSidebarOpen - Whether the sidebar is open.
+ * @param selectedNoteId - The ID of the selected note.
+ * @param setSelectedNoteId - A function to set the selected note ID.
+ * @param searchQuery - The search query string.
+ * @param setSearchQuery - A function to set the search query string.
+ * @param notes - The list of notes.
+ * @param hasNextPage - Whether there is a next page.
+ * @param isLoadingNotes - Whether the notes are loading.
+ * @param setIsEditing - A function to set whether the note is being edited.
+ * @param fetchNextPage - A function to fetch the next page of notes.
+ */
 export function NoteSideBar({
   isSidebarOpen,
   selectedNoteId,
