@@ -1,8 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "./App.css";
-import { LevoNoteComponent } from "./components/levo-note-v2";
+import { LevoNote } from "./components/levo-note-v2";
 
-function App() {
-  return <LevoNoteComponent />;
+export function App() {
+  const queryClient = new QueryClient();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LevoNote />
+    </QueryClientProvider>
+  );
 }
-
 export default App;

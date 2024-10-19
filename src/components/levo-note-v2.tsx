@@ -22,88 +22,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  QueryClient,
-  QueryClientProvider,
   useQuery,
   useMutation,
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { z } from "zod";
 import { useInView } from "react-intersection-observer";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import httpClient from "@/config/httpClient";
 import useDebounce from "@/hooks/useDebounce";
-import { convertToDateTimeLocal } from "@/utils";
+import { convertToDateTimeLocal } from "@/lib/utils";
+import { Note, ReminderSchema } from "@/shcemas";
+import {
+  createNote,
+  createReminder,
+  getNote,
+  deleteNote,
+  getNotes,
+  updateNote,
+  updateReminder,
+} from "@/api";
 
-// Zod schemas for data validation
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const NoteSchema = z.object({
-  id: z.string(), // Changed to string as the response has IDs as strings
-  title: z.string(),
-  description: z.string(),
-});
-
-const ReminderSchema = z.object({
-  id: z.string().optional(),
-  email: z.string().email(),
-  date: z.string(),
-  note_id: z.string(),
-});
-
-type Note = z.infer<typeof NoteSchema>;
-type Reminder = z.infer<typeof ReminderSchema>;
-
-// API calls to handle notes and reminders
-const api = {
-  getNotes: async (
-    page = 1,
-    limit = 5,
-    search = ""
-  ): Promise<{ items: Note[]; total: number }> => {
-    const response = await httpClient.get(
-      `/notes?page=${page}&limit=${limit}&search_query=${search}`
-    );
-    return response.data; // Assuming data contains items and total fields
-  },
-  getNote: async (id: string): Promise<Note> => {
-    const response = await httpClient.get(`/notes/${id}`);
-    return response.data;
-  },
-  createNote: async (note: Omit<Note, "id">): Promise<Note> => {
-    const response = await httpClient.post("/notes", note);
-    return response.data;
-  },
-  updateNote: async ({ id, title, description }: Note): Promise<Note> => {
-    const response = await httpClient.put(`/notes/${id}`, {
-      title,
-      description,
-    });
-    return response.data;
-  },
-  deleteNote: async (id: string): Promise<void> => {
-    await httpClient.delete(`/notes/${id}`);
-  },
-  createReminder: async (reminder: Omit<Reminder, "id">): Promise<Reminder> => {
-    const response = await httpClient.post("/reminders", reminder);
-    return response.data;
-  },
-  updateReminder: async (reminder: Reminder): Promise<Reminder> => {
-    const response = await httpClient.put(`/reminders/${reminder.id}`, {
-      email: reminder.email,
-      date: reminder.date,
-    });
-    return response.data;
-  },
-};
-function LevoNote() {
+export function LevoNote() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
-  const [reminderEmail, setReminderEmail] = useState("");
-  const [reminderDate, setReminderDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const { ref, inView } = useInView(); // used for infinite scroll
@@ -125,7 +69,7 @@ function LevoNote() {
   } = useInfiniteQuery({
     queryKey: ["notes", debouncedSearchQuery],
     queryFn: ({ pageParam = 1 }) =>
-      api.getNotes(pageParam, 20, debouncedSearchQuery),
+      getNotes(pageParam, 20, debouncedSearchQuery),
     getNextPageParam: (lastPage, allPages) => {
       const nextPage = allPages.length + 1;
       return nextPage <= lastPage.total / 20 ? nextPage : undefined;
@@ -140,7 +84,7 @@ function LevoNote() {
     isFetched,
   } = useQuery({
     queryKey: ["note", selectedNoteId],
-    queryFn: () => api.getNote(selectedNoteId!),
+    queryFn: () => getNote(selectedNoteId!),
     enabled: !!selectedNoteId,
   });
 
@@ -148,25 +92,11 @@ function LevoNote() {
     if (isFetched) {
       setTitle(selectedNote?.title ?? "");
       setDescription(selectedNote?.description ?? "");
-      setReminderEmail(selectedNote?.reminder?.email ?? "");
-      setReminderDate(
-        selectedNote?.reminder?.date
-          ? convertToDateTimeLocal(selectedNote?.reminder?.date)
-          : ""
-      );
     }
   }, [isFetched, selectedNote]);
 
-  const createNoteMutation = useMutation({
-    mutationFn: api.createNote,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["notes"] });
-      setSelectedNoteId(data.note.id);
-    },
-  });
-
   const updateNoteMutation = useMutation({
-    mutationFn: api.updateNote,
+    mutationFn: updateNote,
     retry: 0,
   });
 
@@ -182,16 +112,108 @@ function LevoNote() {
   }, [debouncedTitle, debouncedDescription]);
 
   const deleteNoteMutation = useMutation({
-    mutationFn: api.deleteNote,
+    mutationFn: deleteNote,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
   });
 
-  const createReminderMutation = useMutation({
-    mutationFn: api.createReminder,
-  });
+  const handleDeleteNote = () => {
+    if (selectedNote) {
+      deleteNoteMutation.mutate(selectedNote.id);
+      setSelectedNoteId(null);
+      setTitle("");
+      setDescription("");
+      setIsDeleteDialogOpen(false);
+    }
+  };
 
-  const updateReminderMutation = useMutation({
-    mutationFn: api.updateReminder,
+  const toggleEditMode = () => {
+    setIsEditing(!isEditing);
+  };
+
+  // Automatically fetch next page when `inView` is true (bottom of the list is visible)
+  useEffect(() => {
+    if (inView && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, fetchNextPage]);
+
+  return (
+    <div className="flex h-screen bg-white">
+      {/* Sidebar */}
+      <NoteSideBar
+        isSidebarOpen={isSidebarOpen}
+        selectedNoteId={selectedNoteId}
+        setSelectedNoteId={setSelectedNoteId}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        notes={notes}
+        hasNextPage={hasNextPage}
+        ref={ref}
+        isLoadingNotes={isLoadingNotes}
+      />
+      {/* Main content */}
+      <MainContent
+        description={description}
+        isLoadingNotes={isLoadingNotes}
+        isLoadingSelectedNote={isLoadingSelectedNote}
+        selectedNote={selectedNote}
+        isEditing={isEditing}
+        toggleEditMode={toggleEditMode}
+        setDescription={setDescription}
+        title={title}
+        setTitle={setTitle}
+        setIsReminderDialogOpen={setIsReminderDialogOpen}
+        isSidebarOpen={isSidebarOpen}
+        setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+        setIsSidebarOpen={setIsSidebarOpen}
+      />
+
+      {/* Delete Note Dialog */}
+      <DeleteDialog
+        isDeleteDialogOpen={isDeleteDialogOpen}
+        setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+        deleteNote={handleDeleteNote}
+      />
+
+      {/* Set Reminder Dialog */}
+      <ReminderFormDialog
+        isReminderDialogOpen={isReminderDialogOpen}
+        setIsReminderDialogOpen={setIsReminderDialogOpen}
+        selectedNote={selectedNote}
+      />
+    </div>
+  );
+}
+
+export function NoteSideBar({
+  isSidebarOpen,
+  selectedNoteId,
+  setSelectedNoteId,
+  searchQuery,
+  setSearchQuery,
+  notes,
+  hasNextPage,
+  ref,
+  isLoadingNotes,
+}: {
+  isSidebarOpen: boolean;
+  selectedNoteId: string | null;
+  setSelectedNoteId: React.Dispatch<React.SetStateAction<string | null>>;
+  searchQuery: string;
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  notes: Note[];
+  hasNextPage: boolean;
+  ref: (node?: Element | null) => void;
+  isLoadingNotes: boolean;
+}) {
+  const queryClient = useQueryClient();
+
+  const createNoteMutation = useMutation({
+    mutationFn: createNote,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      setSelectedNoteId(data.note.id);
+    },
   });
 
   const addNewNote = () => {
@@ -202,16 +224,221 @@ function LevoNote() {
     });
   };
 
-  const deleteNote = () => {
-    if (selectedNote) {
-      deleteNoteMutation.mutate(selectedNote.id);
-      setSelectedNoteId(null);
-      setTitle("");
-      setDescription("");
-      setIsDeleteDialogOpen(false);
-    }
-  };
+  return (
+    <div
+      className={`bg-gray-100 ${
+        isSidebarOpen ? "w-64" : "w-0"
+      } transition-all duration-300 overflow-hidden flex flex-col`}
+    >
+      <div className="p-4">
+        <h1 className="text-xl font-bold mb-4">Levo Note</h1>
+        <button
+          onClick={addNewNote}
+          className="flex items-center text-gray-700 hover:text-gray-900 mb-4"
+        >
+          <PlusCircle className="w-4 h-4 mr-2" />
+          New Note
+        </button>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <Input
+            type="text"
+            placeholder="Search notes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+      <nav className="flex-1 overflow-y-auto">
+        {notes.map((note) => (
+          <button
+            key={note.id}
+            onClick={() => setSelectedNoteId(note.id)}
+            className={`w-full text-left p-2 hover:bg-gray-200 flex items-center ${
+              selectedNoteId === note.id ? "bg-gray-200" : ""
+            }`}
+          >
+            <ChevronRight className="w-4 h-4 mr-2" />
+            {note.title}
+          </button>
+        ))}
+        {hasNextPage && (
+          <div ref={ref} className="flex justify-center p-4">
+            {/* Loading spinner will appear automatically when fetching */}
+            {isLoadingNotes && <Loader2 className="w-6 h-6 animate-spin" />}
+          </div>
+        )}
+      </nav>
+    </div>
+  );
+}
 
+export function MainContent({
+  description,
+  isLoadingNotes,
+  isLoadingSelectedNote,
+  selectedNote,
+  isEditing,
+  toggleEditMode,
+  setDescription,
+  title,
+  setTitle,
+  setIsReminderDialogOpen,
+  isSidebarOpen,
+  setIsDeleteDialogOpen,
+  setIsSidebarOpen,
+}: {
+  description: string;
+  isLoadingNotes: boolean;
+  isLoadingSelectedNote: boolean;
+  selectedNote: Note | undefined;
+  isEditing: boolean;
+  toggleEditMode: () => void;
+  setDescription: (description: string) => void;
+  title: string;
+  setTitle: (title: string) => void;
+  setIsReminderDialogOpen: (open: boolean) => void;
+  setIsDeleteDialogOpen: (open: boolean) => void;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: (open: boolean) => void;
+}) {
+  return (
+    <div className="flex-1 flex flex-col">
+      {/* Top bar */}
+      <div className="bg-white border-b p-4 flex items-center justify-between">
+        <div className="flex items-center">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="mr-4"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="text-xl font-semibold bg-transparent border-none focus:outline-none"
+          />
+        </div>
+        {selectedNote && (
+          <NoteActions
+            isEditing={isEditing}
+            toggleEditMode={toggleEditMode}
+            setIsReminderDialogOpen={setIsReminderDialogOpen}
+            setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+          />
+        )}
+      </div>
+      <NoteContent
+        description={description}
+        isLoadingNotes={isLoadingNotes}
+        isLoadingSelectedNote={isLoadingSelectedNote}
+        selectedNote={selectedNote}
+        isEditing={isEditing}
+        setDescription={setDescription}
+      />
+    </div>
+  );
+}
+
+export function NoteActions({
+  isEditing,
+  toggleEditMode,
+  setIsReminderDialogOpen,
+  setIsDeleteDialogOpen,
+}: {
+  isEditing: boolean;
+  toggleEditMode: () => void;
+  setIsReminderDialogOpen: (open: boolean) => void;
+  setIsDeleteDialogOpen: (open: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center space-x-2">
+      <button
+        onClick={toggleEditMode}
+        className="p-2 hover:bg-gray-100 rounded"
+      >
+        {isEditing ? <X className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
+      </button>
+      <button
+        onClick={() => setIsReminderDialogOpen(true)}
+        className="p-2 hover:bg-gray-100 rounded"
+      >
+        <Clock className="w-5 h-5" />
+      </button>
+      <button
+        onClick={() => setIsDeleteDialogOpen(true)}
+        className="p-2 hover:bg-gray-100 rounded"
+      >
+        <Trash2 className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
+export function NoteContent({
+  description,
+  isLoadingNotes,
+  isLoadingSelectedNote,
+  selectedNote,
+  isEditing,
+  setDescription,
+}: {
+  description: string;
+  isLoadingNotes: boolean;
+  isLoadingSelectedNote: boolean;
+  selectedNote: Note | undefined;
+  isEditing: boolean;
+  setDescription: (description: string) => void;
+}) {
+  return (
+    <div className="flex-1 p-8 overflow-auto">
+      {isLoadingNotes || isLoadingSelectedNote ? (
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="w-8 h-8 animate-spin" />
+        </div>
+      ) : selectedNote ? (
+        isEditing ? (
+          <ReactQuill
+            value={description}
+            onChange={(content) => setDescription(content)}
+            className="h-full"
+          />
+        ) : (
+          <div
+            className="prose max-w-none"
+            dangerouslySetInnerHTML={{ __html: description }}
+          />
+        )
+      ) : (
+        <p className="text-gray-500">
+          Select a note or create a new one to start writing.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function ReminderFormDialog({
+  isReminderDialogOpen,
+  setIsReminderDialogOpen,
+  selectedNote,
+}: {
+  selectedNote: Note | undefined;
+  isReminderDialogOpen: boolean;
+  setIsReminderDialogOpen: (open: boolean) => void;
+}) {
+  console.log(selectedNote);
+  const [reminderEmail, setReminderEmail] = useState();
+  const [reminderDate, setReminderDate] = useState();
+  const createReminderMutation = useMutation({
+    mutationFn: createReminder,
+  });
+
+  const updateReminderMutation = useMutation({
+    mutationFn: updateReminder,
+  });
   const setReminder = () => {
     if (selectedNote) {
       const reminderData = ReminderSchema.parse({
@@ -230,197 +457,56 @@ function LevoNote() {
       setIsReminderDialogOpen(false);
     }
   };
-
-  const toggleEditMode = () => {
-    setIsEditing(!isEditing);
-  };
-
-  // Automatically fetch next page when `inView` is true (bottom of the list is visible)
-  useEffect(() => {
-    if (inView && hasNextPage) {
-      fetchNextPage();
-    }
-  }, [inView, hasNextPage, fetchNextPage]);
-
   return (
-    <div className="flex h-screen bg-white">
-      {/* Sidebar */}
-      <div
-        className={`bg-gray-100 ${
-          isSidebarOpen ? "w-64" : "w-0"
-        } transition-all duration-300 overflow-hidden flex flex-col`}
-      >
-        <div className="p-4">
-          <h1 className="text-xl font-bold mb-4">Levo Note</h1>
-          <button
-            onClick={addNewNote}
-            className="flex items-center text-gray-700 hover:text-gray-900 mb-4"
-          >
-            <PlusCircle className="w-4 h-4 mr-2" />
-            New Note
-          </button>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+    <Dialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Set Reminder</DialogTitle>
+          <DialogDescription>
+            Set an email reminder for this note.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="reminder-email" className="text-right">
+              Email
+            </Label>
             <Input
-              type="text"
-              placeholder="Search notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              id="reminder-email"
+              value={reminderEmail ?? selectedNote?.reminder?.email ?? ""}
+              onChange={(e) => setReminderEmail(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="reminder-date" className="text-right">
+              Date & Time
+            </Label>
+            <Input
+              id="reminder-date"
+              type="datetime-local"
+              value={
+                reminderDate ??
+                (selectedNote?.reminder?.date
+                  ? convertToDateTimeLocal(selectedNote?.reminder?.date)
+                  : "")
+              }
+              onChange={(e) => setReminderDate(e.target.value)}
+              className="col-span-3"
             />
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto">
-          {notes.map((note) => (
-            <button
-              key={note.id}
-              onClick={() => setSelectedNoteId(note.id)}
-              className={`w-full text-left p-2 hover:bg-gray-200 flex items-center ${
-                selectedNoteId === note.id ? "bg-gray-200" : ""
-              }`}
-            >
-              <ChevronRight className="w-4 h-4 mr-2" />
-              {note.title}
-            </button>
-          ))}
-          {hasNextPage && (
-            <div ref={ref} className="flex justify-center p-4">
-              {/* Loading spinner will appear automatically when fetching */}
-              {isLoadingNotes && <Loader2 className="w-6 h-6 animate-spin" />}
-            </div>
-          )}
-        </nav>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col">
-        {/* Top bar */}
-        <div className="bg-white border-b p-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="mr-4"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="text-xl font-semibold bg-transparent border-none focus:outline-none"
-            />
-          </div>
-          {selectedNote && (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={toggleEditMode}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
-                {isEditing ? (
-                  <X className="w-5 h-5" />
-                ) : (
-                  <Edit className="w-5 h-5" />
-                )}
-              </button>
-              <button
-                onClick={() => setIsReminderDialogOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
-                <Clock className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setIsDeleteDialogOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Note content */}
-        <div className="flex-1 p-8 overflow-auto">
-          {isLoadingNotes || isLoadingSelectedNote ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          ) : selectedNote ? (
-            isEditing ? (
-              <ReactQuill
-                value={description}
-                onChange={(content) => setDescription(content)}
-                className="h-full"
-              />
-            ) : (
-              <div
-                className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: description }}
-              />
-            )
-          ) : (
-            <p className="text-gray-500">
-              Select a note or create a new one to start writing.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Delete Note Dialog */}
-      <DeleteDialog
-        isDeleteDialogOpen={isDeleteDialogOpen}
-        setIsDeleteDialogOpen={setIsDeleteDialogOpen}
-        deleteNote={deleteNote}
-      />
-
-      {/* Set Reminder Dialog */}
-      <Dialog
-        open={isReminderDialogOpen}
-        onOpenChange={setIsReminderDialogOpen}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set Reminder</DialogTitle>
-            <DialogDescription>
-              Set an email reminder for this note.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reminder-email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="reminder-email"
-                value={reminderEmail}
-                onChange={(e) => setReminderEmail(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="reminder-date" className="text-right">
-                Date & Time
-              </Label>
-              <Input
-                id="reminder-date"
-                type="datetime-local"
-                value={reminderDate}
-                onChange={(e) => setReminderDate(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsReminderDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={setReminder}>Set Reminder</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setIsReminderDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button onClick={setReminder}>Set Reminder</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -460,12 +546,4 @@ export function DeleteDialog({
 }
 
 // Wrap the app with QueryClientProvider
-export function LevoNoteComponent() {
-  const queryClient = new QueryClient();
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <LevoNote />
-    </QueryClientProvider>
-  );
-}
