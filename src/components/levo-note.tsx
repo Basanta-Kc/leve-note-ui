@@ -35,6 +35,7 @@ import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import httpClient from "@/config/httpClient";
 import useDebounce from "@/hooks/useDebounce";
+import { convertToDateTimeLocal } from "@/utils";
 
 // Zod schemas for data validation
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -62,7 +63,7 @@ const api = {
     search = ""
   ): Promise<{ items: Note[]; total: number }> => {
     const response = await httpClient.get(
-      `/notes?page=${page}&limit=${limit}&search=${search}`
+      `/notes?page=${page}&limit=${limit}&search_query=${search}`
     );
     return response.data; // Assuming data contains items and total fields
   },
@@ -88,6 +89,13 @@ const api = {
     const response = await httpClient.post("/reminders", reminder);
     return response.data;
   },
+  updateReminder: async (reminder: Reminder): Promise<Reminder> => {
+    const response = await httpClient.put(`/reminders/${reminder.id}`, {
+      email: reminder.email,
+      date: reminder.date,
+    });
+    return response.data;
+  },
 };
 
 function LevoNote() {
@@ -109,7 +117,7 @@ function LevoNote() {
   const debouncedDescription = useDebounce(description, 2000);
 
   // Debounced values
-  const debouncedSearchQuery = useDebounce(searchQuery, 2000);
+  const debouncedSearchQuery = useDebounce(searchQuery, 1000);
 
   // Infinite query for fetching notes
   const {
@@ -120,10 +128,10 @@ function LevoNote() {
   } = useInfiniteQuery({
     queryKey: ["notes", debouncedSearchQuery],
     queryFn: ({ pageParam = 1 }) =>
-      api.getNotes(pageParam, 5, debouncedSearchQuery),
+      api.getNotes(pageParam, 20, debouncedSearchQuery),
     getNextPageParam: (lastPage, allPages) => {
       const nextPage = allPages.length + 1; // Increment current page count
-      return nextPage <= lastPage.total / 5 ? nextPage : undefined; // Assuming `total` is the total number of notes
+      return nextPage <= lastPage.total / 20 ? nextPage : undefined; // Assuming `total` is the total number of notes
     },
   });
 
@@ -141,14 +149,23 @@ function LevoNote() {
 
   useEffect(() => {
     if (isFetched) {
-      setTitle(selectedNote?.title || "");
-      setDescription(selectedNote?.description || "");
+      setTitle(selectedNote?.title ?? "");
+      setDescription(selectedNote?.description ?? "");
+      setReminderEmail(selectedNote?.reminder?.email ?? "");
+      setReminderDate(
+        selectedNote?.reminder?.date
+          ? convertToDateTimeLocal(selectedNote?.reminder?.date)
+          : ""
+      );
     }
   }, [isFetched, selectedNote]);
 
   const createNoteMutation = useMutation({
     mutationFn: api.createNote,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      setSelectedNoteId(data.note.id);
+    },
   });
 
   const updateNoteMutation = useMutation({
@@ -176,10 +193,15 @@ function LevoNote() {
     mutationFn: api.createReminder,
   });
 
+  const updateReminderMutation = useMutation({
+    mutationFn: api.updateReminder,
+  });
+
   const addNewNote = () => {
     createNoteMutation.mutate({
-      title: `Untitled ${notes.length + 1}`,
-      description: "<p>Start writing your new note by clicking on edit icon above ...</p>",
+      title: `Untitled`,
+      description:
+        "<p>Start writing your new note by clicking on edit icon above ...</p>",
     });
   };
 
@@ -187,6 +209,8 @@ function LevoNote() {
     if (selectedNote) {
       deleteNoteMutation.mutate(selectedNote.id);
       setSelectedNoteId(null);
+      setTitle("");
+      setDescription("");
       setIsDeleteDialogOpen(false);
     }
   };
@@ -198,10 +222,15 @@ function LevoNote() {
         date: reminderDate,
         note_id: selectedNote.id,
       });
-      createReminderMutation.mutate(reminderData);
+      if (selectedNote.reminder) {
+        updateReminderMutation.mutate({
+          id: selectedNote.reminder.id,
+          ...reminderData,
+        });
+      } else {
+        createReminderMutation.mutate(reminderData);
+      }
       setIsReminderDialogOpen(false);
-      setReminderEmail("");
-      setReminderDate("");
     }
   };
 
@@ -326,7 +355,7 @@ function LevoNote() {
             ) : (
               <div
                 className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: description}}
+                dangerouslySetInnerHTML={{ __html: description }}
               />
             )
           ) : (
