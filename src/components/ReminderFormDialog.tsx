@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +14,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
-import "react-quill/dist/quill.snow.css";
-import { convertToDateTimeLocal } from "@/lib/utils";
 import { Note } from "@/shcemas";
 import { createReminder, updateReminder } from "@/api";
+
+const ReminderSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  date: z.string(),
+});
+
+type ReminderFormInputs = z.infer<typeof ReminderSchema>;
 
 export function ReminderFormDialog({
   isReminderDialogOpen,
@@ -25,8 +33,15 @@ export function ReminderFormDialog({
   isReminderDialogOpen: boolean;
   setIsReminderDialogOpen: (open: boolean) => void;
 }) {
-  const [reminderEmail, setReminderEmail] = useState();
-  const [reminderDate, setReminderDate] = useState();
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<ReminderFormInputs>({
+    resolver: zodResolver(ReminderSchema),
+  });
+
   const createReminderMutation = useMutation({
     mutationFn: createReminder,
   });
@@ -34,11 +49,12 @@ export function ReminderFormDialog({
   const updateReminderMutation = useMutation({
     mutationFn: updateReminder,
   });
-  const setReminder = () => {
+
+  const onSubmit = (data: ReminderFormInputs) => {
     if (selectedNote) {
       const reminderData = {
-        email: reminderEmail,
-        date: reminderDate,
+        email: data.email,
+        date: data.date,
         note_id: selectedNote.id,
       };
       if (selectedNote.reminder) {
@@ -52,6 +68,15 @@ export function ReminderFormDialog({
       setIsReminderDialogOpen(false);
     }
   };
+
+  // Set default values when selectedNote changes
+  useEffect(() => {
+    if (selectedNote) {
+      setValue("email", selectedNote.reminder?.email || "");
+      setValue("date", selectedNote.reminder?.date || "");
+    }
+  }, [selectedNote, setValue]);
+
   return (
     <Dialog open={isReminderDialogOpen} onOpenChange={setIsReminderDialogOpen}>
       <DialogContent>
@@ -61,45 +86,57 @@ export function ReminderFormDialog({
             Set an email reminder for this note.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 py-4">
+          {/* Email Field */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="reminder-email" className="text-right">
               Email
             </Label>
-            <Input
-              id="reminder-email"
-              value={reminderEmail ?? selectedNote?.reminder?.email ?? ""}
-              onChange={(e) => setReminderEmail(e.target.value)}
-              className="col-span-3"
-            />
+            <div className="col-span-3">
+              <Input
+                id="reminder-email"
+                {...register("email")}
+                className="w-full"
+                placeholder="Enter email"
+              />
+              {errors.email && (
+                <span className="text-red-500 text-sm mt-1">
+                  {errors.email.message}
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Date Field */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="reminder-date" className="text-right">
               Date & Time
             </Label>
-            <Input
-              id="reminder-date"
-              type="datetime-local"
-              value={
-                reminderDate ??
-                (selectedNote?.reminder?.date
-                  ? convertToDateTimeLocal(selectedNote?.reminder?.date)
-                  : "")
-              }
-              onChange={(e) => setReminderDate(e.target.value)}
-              className="col-span-3"
-            />
+            <div className="col-span-3">
+              <Input
+                id="reminder-date"
+                type="datetime-local"
+                {...register("date")}
+                className="w-full"
+              />
+              {errors.date && (
+                <span className="text-red-500 text-sm mt-1">
+                  {errors.date.message}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsReminderDialogOpen(false)}
-          >
-            Cancel
-          </Button>
-          <Button onClick={setReminder}>Set Reminder</Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsReminderDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit">Set Reminder</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
