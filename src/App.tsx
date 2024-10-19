@@ -1,5 +1,5 @@
 import "./App.css";
-import { LevoNoteComponent } from "./components/levo-note";
+import { LevoNoteComponent } from "./components/levo-note-v2";
 
 function App() {
   return <LevoNoteComponent />;
