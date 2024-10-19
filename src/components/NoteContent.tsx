@@ -30,6 +30,7 @@ export function NoteContent({
         isEditing ? (
           <ReactQuill
             value={description}
+            
             onChange={(content) => setDescription(content)}
             className="h-full"
           />

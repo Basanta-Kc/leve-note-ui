@@ -1,19 +1,11 @@
-import {
-  PlusCircle,
-  ChevronRight,
-  Search,
-  Loader2,
-} from "lucide-react";
+import { PlusCircle, ChevronRight, Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import {
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { FetchNextPageOptions, InfiniteData, InfiniteQueryObserverResult, useMutation, useQueryClient } from "@tanstack/react-query";
 import "react-quill/dist/quill.snow.css";
 import { Note } from "@/shcemas";
-import {
-  createNote,
-} from "@/api";
+import { createNote } from "@/api";
+import { useInView } from "react-intersection-observer";
+import { useEffect } from "react";
 
 export function NoteSideBar({
   isSidebarOpen,
@@ -23,8 +15,9 @@ export function NoteSideBar({
   setSearchQuery,
   notes,
   hasNextPage,
-  ref,
   isLoadingNotes,
+  setIsEditing,
+  fetchNextPage,
 }: {
   isSidebarOpen: boolean;
   selectedNoteId: string | null;
@@ -33,16 +26,30 @@ export function NoteSideBar({
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   notes: Note[];
   hasNextPage: boolean;
-  ref: (node?: Element | null) => void;
   isLoadingNotes: boolean;
+  setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
+  fetchNextPage: (
+    options?: FetchNextPageOptions
+  ) => Promise<
+    InfiniteQueryObserverResult<InfiniteData<unknown, unknown>, Error>
+  >;
 }) {
   const queryClient = useQueryClient();
+
+  const { ref, inView } = useInView();
+  // Automatically fetch next page when `inView` is true (bottom of the list is visible)
+  useEffect(() => {
+    if (inView && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, fetchNextPage]);
 
   const createNoteMutation = useMutation({
     mutationFn: createNote,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       setSelectedNoteId(data.note.id);
+      setIsEditing(false)
     },
   });
 

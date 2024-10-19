@@ -5,19 +5,14 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { useInView } from "react-intersection-observer";
 import "react-quill/dist/quill.snow.css";
 import useDebounce from "@/hooks/useDebounce";
-import {
-  getNote,
-  deleteNote,
-  getNotes,
-  updateNote,
-} from "@/api";
+import { getNote, deleteNote, getNotes, updateNote } from "@/api";
 import { DeleteDialog } from "./DeleteDialog";
 import { MainContent } from "./MainContent";
 import { NoteSideBar } from "./NoteSideBar";
 import { ReminderFormDialog } from "./ReminderFormDialog";
+import useSyncQueryParam from "@/hooks/useSyncQueryParam";
 
 export function LevoNote() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
@@ -26,15 +21,16 @@ export function LevoNote() {
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-  const { ref, inView } = useInView(); // used for infinite scroll
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
+  useSyncQueryParam("noteId", setSelectedNoteId);
+
   // Debounced values
-  const debouncedTitle = useDebounce(title, 2000);
-  const debouncedDescription = useDebounce(description, 2000);
-  const debouncedSearchQuery = useDebounce(searchQuery, 1000);
+  const debouncedTitle = useDebounce(title);
+  const debouncedDescription = useDebounce(description);
+  const debouncedSearchQuery = useDebounce(searchQuery);
 
   // Infinite query for fetching notes
   const {
@@ -74,18 +70,22 @@ export function LevoNote() {
   const updateNoteMutation = useMutation({
     mutationFn: updateNote,
     retry: 0,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
   });
 
   // Effect to handle updates when debounced values change
   useEffect(() => {
-    if (debouncedTitle || debouncedDescription) {
+    if ((debouncedTitle || debouncedDescription) && isEditing) {
       updateNoteMutation.mutate({
         id: selectedNoteId,
         title: debouncedTitle,
         description: debouncedDescription,
       });
     }
-  }, [debouncedTitle, debouncedDescription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedTitle, debouncedDescription, isEditing]);
 
   const deleteNoteMutation = useMutation({
     mutationFn: deleteNote,
@@ -106,13 +106,6 @@ export function LevoNote() {
     setIsEditing(!isEditing);
   };
 
-  // Automatically fetch next page when `inView` is true (bottom of the list is visible)
-  useEffect(() => {
-    if (inView && hasNextPage) {
-      fetchNextPage();
-    }
-  }, [inView, hasNextPage, fetchNextPage]);
-
   return (
     <div className="flex h-screen bg-white">
       {/* Sidebar */}
@@ -120,12 +113,13 @@ export function LevoNote() {
         isSidebarOpen={isSidebarOpen}
         selectedNoteId={selectedNoteId}
         setSelectedNoteId={setSelectedNoteId}
+        setIsEditing={setIsEditing}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         notes={notes}
         hasNextPage={hasNextPage}
-        ref={ref}
         isLoadingNotes={isLoadingNotes}
+        fetchNextPage={fetchNextPage}
       />
       {/* Main content */}
       <MainContent
@@ -160,11 +154,3 @@ export function LevoNote() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
