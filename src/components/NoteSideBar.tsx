@@ -30,7 +30,6 @@ export function NoteSideBar({
   notes,
   hasNextPage,
   isLoadingNotes,
-  setIsEditing,
   fetchNextPage,
 }: {
   isSidebarOpen: boolean;
@@ -63,7 +62,6 @@ export function NoteSideBar({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       setSelectedNoteId(data.note.id);
-      setIsEditing(false)
     },
   });
 

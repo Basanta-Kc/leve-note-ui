@@ -3,62 +3,108 @@ import { Note } from "@/shcemas";
 import { Menu } from "lucide-react";
 import { NoteActions } from "./NoteActions";
 import { NoteContent } from "./NoteContent";
+import { updateNote, deleteNote, getNote } from "@/api";
+import useDebounce from "@/hooks/useDebounce";
+import useSyncQueryParam from "@/hooks/useSyncQueryParam";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { DeleteDialog } from "./DeleteDialog";
+import { ReminderFormDialog } from "./ReminderFormDialog";
+
 
 /**
- * The main content of the application.
- *
- * This component renders the main content area of the application, which
- * displays a note or allows the user to create a new note.
- *
- * The component takes the following props:
- * - `description`: The description of the selected note.
- * - `isLoadingNotes`: Whether the notes are being fetched.
- * - `isLoadingSelectedNote`: Whether the selected note is being fetched.
- * - `selectedNote`: The selected note, if any.
- * - `isEditing`: Whether the selected note is being edited.
- * - `toggleEditMode`: A function to toggle whether the selected note is being
- *   edited.
- * - `setDescription`: A function to set the description of the selected note.
- * - `title`: The title of the selected note.
- * - `setTitle`: A function to set the title of the selected note.
- * - `setIsReminderDialogOpen`: A function to set whether the reminder dialog is
- *   open.
- * - `setIsDeleteDialogOpen`: A function to set whether the delete dialog is
- *   open.
- * - `isSidebarOpen`: Whether the sidebar is open.
- * - `setIsSidebarOpen`: A function to set whether the sidebar is open.
- *
- * @returns The main content component.
+ * MainContent component for displaying the main content area of the note-taking app.
+ * 
+ * This component handles the rendering of the main content section, including the note title, description, editing mode, and actions.
+ * 
+ * Props:
+ * - selectedNoteId: The ID of the selected note.
+ * - setSelectedNoteId: Function to set the selected note ID.
+ * - isLoadingNotes: Indicates if notes are currently loading.
+ * - setIsSidebarOpen: Function to set the sidebar open state.
+ * - isSidebarOpen: Indicates if the sidebar is open.
  */
+
 export function MainContent({
-  description,
+  selectedNoteId,
+  setSelectedNoteId,
   isLoadingNotes,
-  isLoadingSelectedNote,
-  selectedNote,
-  isEditing,
-  toggleEditMode,
-  setDescription,
-  title,
-  setTitle,
-  setIsReminderDialogOpen,
-  isSidebarOpen,
-  setIsDeleteDialogOpen,
   setIsSidebarOpen,
+  isSidebarOpen,
 }: {
-  description: string;
+  selectedNoteId: string | null;
+  setSelectedNoteId: (noteId: string | null) => void;
   isLoadingNotes: boolean;
-  isLoadingSelectedNote: boolean;
-  selectedNote: Note | undefined;
-  isEditing: boolean;
-  toggleEditMode: () => void;
-  setDescription: (description: string) => void;
-  title: string;
-  setTitle: (title: string) => void;
-  setIsReminderDialogOpen: (open: boolean) => void;
-  setIsDeleteDialogOpen: (open: boolean) => void;
-  isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
+  isSidebarOpen: boolean;
 }) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  useSyncQueryParam("noteId", setSelectedNoteId);
+
+  // Debounced values
+  const debouncedTitle = useDebounce(title);
+  const debouncedDescription = useDebounce(description);
+  const {
+    data: selectedNote,
+    isLoading: isLoadingSelectedNote,
+    isFetched,
+  } = useQuery({
+    queryKey: ["note", selectedNoteId],
+    queryFn: () => getNote(selectedNoteId!),
+    enabled: !!selectedNoteId,
+  });
+  useEffect(() => {
+    if (isFetched) {
+      setTitle(selectedNote?.title ?? "");
+      setDescription(selectedNote?.description ?? "");
+    }
+  }, [isFetched, selectedNote]);
+
+  const updateNoteMutation = useMutation({
+    mutationFn: updateNote,
+    retry: 0,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+
+  // Effect to handle updates when debounced values change
+  useEffect(() => {
+    if ((debouncedTitle || debouncedDescription) && isEditing) {
+      updateNoteMutation.mutate({
+        id: selectedNoteId,
+        title: debouncedTitle,
+        description: debouncedDescription,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedTitle, debouncedDescription, isEditing]);
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: deleteNote,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+  });
+
+  const handleDeleteNote = () => {
+    if (selectedNote) {
+      deleteNoteMutation.mutate(selectedNote.id);
+      setSelectedNoteId(null);
+      setTitle("");
+      setDescription("");
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+  const toggleEditMode = () => {
+    setIsEditing(!isEditing);
+  };
+
   return (
     <div className="flex-1 flex flex-col">
       {/* Top bar */}
@@ -93,6 +139,19 @@ export function MainContent({
         selectedNote={selectedNote}
         isEditing={isEditing}
         setDescription={setDescription}
+      />
+      {/* Delete Note Dialog */}
+      <DeleteDialog
+        isDeleteDialogOpen={isDeleteDialogOpen}
+        setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+        deleteNote={handleDeleteNote}
+      />
+
+      {/* Set Reminder Dialog */}
+      <ReminderFormDialog
+        isReminderDialogOpen={isReminderDialogOpen}
+        setIsReminderDialogOpen={setIsReminderDialogOpen}
+        selectedNote={selectedNote}
       />
     </div>
   );
