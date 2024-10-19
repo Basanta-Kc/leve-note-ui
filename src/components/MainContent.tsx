@@ -1,5 +1,4 @@
 import "react-quill/dist/quill.snow.css";
-import { Note } from "@/shcemas";
 import { Menu } from "lucide-react";
 import { NoteActions } from "./NoteActions";
 import { NoteContent } from "./NoteContent";

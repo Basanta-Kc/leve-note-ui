@@ -12,3 +12,5 @@ export function App() {
   );
 }
 export default App;
+
+// todo: toast for errors, notifications for success

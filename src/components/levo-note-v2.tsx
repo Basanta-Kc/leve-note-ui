@@ -1,17 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  useQuery,
-  useMutation,
-  useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import "react-quill/dist/quill.snow.css";
 import useDebounce from "@/hooks/useDebounce";
-import { getNote, deleteNote, getNotes, updateNote } from "@/api";
-import { DeleteDialog } from "./DeleteDialog";
+import { getNotes } from "@/api";
 import { MainContent } from "./MainContent";
 import { NoteSideBar } from "./NoteSideBar";
-import { ReminderFormDialog } from "./ReminderFormDialog";
 import useSyncQueryParam from "@/hooks/useSyncQueryParam";
 
 /**
