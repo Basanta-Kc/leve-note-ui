@@ -9,13 +9,13 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { ReminderFormDialog } from "./ReminderFormDialog";
-
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * MainContent component for displaying the main content area of the note-taking app.
- * 
+ *
  * This component handles the rendering of the main content section, including the note title, description, editing mode, and actions.
- * 
+ *
  * Props:
  * - selectedNoteId: The ID of the selected note.
  * - setSelectedNoteId: Function to set the selected note ID.
@@ -37,6 +37,7 @@ export function MainContent({
   setIsSidebarOpen: (open: boolean) => void;
   isSidebarOpen: boolean;
 }) {
+  const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isReminderDialogOpen, setIsReminderDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -87,7 +88,12 @@ export function MainContent({
 
   const deleteNoteMutation = useMutation({
     mutationFn: deleteNote,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    onSuccess: ({ message }) => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+      toast({
+        description: message,
+      });
+    },
   });
 
   const handleDeleteNote = () => {

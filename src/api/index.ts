@@ -42,9 +42,11 @@ export async function updateNote({
   return response.data;
 }
 
+
 // Function to delete a note by ID
-export async function deleteNote(id: string): Promise<void> {
-  await httpClient.delete(`/notes/${id}`);
+export async function deleteNote(id: string): Promise<Response> {
+  const response = await httpClient.delete(`/notes/${id}`);
+  return response.data;
 }
 
 // Function to create a new reminder
