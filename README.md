@@ -4,7 +4,8 @@
 
 Levo Note is a note-taking application designed to help users capture and organize their thoughts seamlessly. Built with modern technologies, this app provides a clean and intuitive interface for managing notes.
 
-![Levo Note Application](path/demo_image.png)
+<img width="722" alt="image" src="https://github.com/user-attachments/assets/3b39635b-21d7-4c0f-9e56-b5ee019981ba">
+
 
 ## Table of Contents
 
@@ -96,7 +97,7 @@ yarn lint
 
 Check out the application demo below:
 
-<iframe width="560" height="315" src="" title="Demo Video" frameborder="0" allowfullscreen></iframe>
+
 
 ## Contributing
 
