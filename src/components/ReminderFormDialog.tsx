@@ -16,10 +16,11 @@ import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { Note } from "@/shcemas";
 import { createReminder, updateReminder } from "@/api";
+import { useToast } from "@/hooks/use-toast";
 
 const ReminderSchema = z.object({
   email: z.string().email("Invalid email format"),
-  date: z.string(),
+  date: z.coerce.date(),
 });
 
 type ReminderFormInputs = z.infer<typeof ReminderSchema>;
@@ -47,6 +48,7 @@ export function ReminderFormDialog({
   isReminderDialogOpen: boolean;
   setIsReminderDialogOpen: (open: boolean) => void;
 }) {
+  const { toast } = useToast();
   const {
     register,
     handleSubmit,
@@ -58,10 +60,20 @@ export function ReminderFormDialog({
 
   const createReminderMutation = useMutation({
     mutationFn: createReminder,
+    onSuccess: ({ message }) => {
+      toast({
+        description: message,
+      });
+    },
   });
 
   const updateReminderMutation = useMutation({
     mutationFn: updateReminder,
+    onSuccess: ({ message }) => {
+      toast({
+        description: message,
+      });
+    },
   });
 
   const onSubmit = (data: ReminderFormInputs) => {

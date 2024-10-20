@@ -1,6 +1,10 @@
 import httpClient from "@/config/httpClient";
 import { Note, Reminder } from "@/shcemas";
 
+type Response = {
+  message: string;
+};
+
 // Function to get notes with pagination and search
 export async function getNotes(
   page = 1,
@@ -46,13 +50,13 @@ export async function deleteNote(id: string): Promise<void> {
 // Function to create a new reminder
 export async function createReminder(
   reminder: Omit<Reminder, "id">
-): Promise<Reminder> {
+): Promise<Response> {
   const response = await httpClient.post("/reminders", reminder);
   return response.data;
 }
 
 // Function to update an existing reminder
-export async function updateReminder(reminder: Reminder): Promise<Reminder> {
+export async function updateReminder(reminder: Reminder): Promise<Response> {
   const response = await httpClient.put(`/reminders/${reminder.id}`, {
     email: reminder.email,
     date: reminder.date,
